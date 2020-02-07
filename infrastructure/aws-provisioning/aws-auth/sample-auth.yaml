@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aws-auth
+  namespace: kube-system
+data:
+  mapRoles: |
+    - rolearn:  arn:aws:iam::114601554524:role/fake-eks-master-NodeInstanceRole-1Q4FPLO6LJ68D
+      username: system:node:{{EC2PrivateDNSName}}
+      groups:
+        - system:bootstrappers
+        - system:nodes
+        - system:masters
+    - rolearn:  arn:aws:iam::114601554524:role/testing-eks-master-NodeInstanceRole-1CGN6EINNA20W
+      username: system:node:{{EC2PrivateDNSName}}
+      groups:
+        - system:bootstrappers
+        - system:nodes
+        - system:masters
+  mapUsers: |
+    - userarn: arn:aws:iam::114601554524:user/qamber.mehdi
+      username: qamber.mehdi
+      groups:
+        - system:masters

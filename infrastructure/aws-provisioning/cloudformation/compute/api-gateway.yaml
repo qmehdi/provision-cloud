@@ -1,0 +1,215 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'This template deploys an Amazon API Gateway with attached Network Load Balancer and a VPCLink'
+Parameters:
+  Env:
+    Type: String
+    Description: 'Environment Name'
+  ClusterName:
+    Description: The cluster name provided when the cluster was created.  If it is incorrect, nodes will not be able to join the cluster.
+    Type: String
+
+Resources:
+  NLBTargetGroup:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Name: !Sub "${Env}-${ClusterName}"
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPort: 'traffic-port'
+      HealthCheckProtocol: TCP
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 3
+      Port: 30080
+      Protocol: TCP
+      TargetType: 'instance'
+      UnhealthyThresholdCount: 3
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${Env}-VPC"
+  NLB:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    DependsOn:
+    - NLBTargetGroup
+    Properties:
+      IpAddressType: 'ipv4'
+      Name: !Sub "${Env}-${ClusterName}-nlb"
+      Scheme: 'internal'
+      Subnets:
+        - Fn::ImportValue:
+            !Sub "${Env}-PrivateSubnet1"
+        - Fn::ImportValue:
+            !Sub "${Env}-PrivateSubnet2"
+        - Fn::ImportValue:
+            !Sub "${Env}-PrivateSubnet3"
+      # Tags:
+      #   - Tag
+      Type: network
+  NLBListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    DependsOn:
+    - NLBTargetGroup
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref NLBTargetGroup
+      LoadBalancerArn: !Ref NLB
+      Port: 80
+      Protocol: 'TCP'
+  ApiVPCLink:
+    Type: AWS::ApiGateway::VpcLink
+    DependsOn:
+      - NLB
+    Properties:
+      Name: !Sub ${Env}-VPCLink
+      TargetArns:
+        - !Ref NLB
+  Api:
+    Type: 'AWS::ApiGateway::RestApi'
+    Properties:
+      Name: !Sub "${Env}-api"
+
+  ApiKey:
+    DependsOn:
+      - Api
+      - Deployment
+    Type: 'AWS::ApiGateway::ApiKey'
+    Properties:
+      Name: !Sub "${Env}-Api-Key"
+      Description: ""
+      Enabled: true
+      StageKeys:
+        - RestApiId: !Ref Api
+          StageName: dev
+
+  ApiUsagePlan:
+    DependsOn:
+      - Api
+      - Deployment
+    Type: 'AWS::ApiGateway::UsagePlan'
+    Properties:
+      ApiStages:
+        - ApiId: !Ref Api
+          Stage: dev
+      Description: !Sub "${Env}-api-usage-plan"
+      Quota:
+        Limit: 20000
+        Period: DAY
+      UsagePlanName: !Sub "${Env}-api-usage-plan"
+
+  ApiUsagePlanKey:
+    DependsOn:
+      - Api
+      - Deployment
+    Type: "AWS::ApiGateway::UsagePlanKey"
+    Properties:
+      KeyId: !Ref ApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref ApiUsagePlan
+  Resource:
+    Type: 'AWS::ApiGateway::Resource'
+    DependsOn:
+    - Api
+    Properties:
+      ParentId: !GetAtt Api.RootResourceId
+      RestApiId: !Ref Api
+      PathPart: '{proxy+}'
+  RootMethod:
+    Type: 'AWS::ApiGateway::Method'
+    DependsOn:
+    - NLB
+    - Api
+    Properties:
+      HttpMethod: ANY
+      ResourceId: !GetAtt Api.RootResourceId
+      RestApiId: !Ref Api
+      AuthorizationType: NONE
+      ApiKeyRequired: true
+      Integration:
+        IntegrationHttpMethod: ANY
+        Type: HTTP_PROXY
+        ConnectionType: VPC_LINK
+        ConnectionId: !Ref ApiVPCLink
+        Uri: !Join
+               - ''
+               - - http://
+                 - !GetAtt NLB.DNSName
+                 - /
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: 200
+  ProxyMethod:
+    Type: 'AWS::ApiGateway::Method'
+    DependsOn:
+    - Resource
+    - Api
+    - NLB
+    - RootMethod
+    Properties:
+      HttpMethod: ANY
+      ResourceId: !Ref Resource
+      RestApiId: !Ref Api
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.proxy: true
+      ApiKeyRequired: true
+      Integration:
+        CacheKeyParameters:
+          - 'method.request.path.proxy'
+        RequestParameters:
+          integration.request.path.proxy: 'method.request.path.proxy'
+        IntegrationHttpMethod: ANY
+        Type: HTTP_PROXY
+        ConnectionType: VPC_LINK
+        ConnectionId: !Ref ApiVPCLink
+        Uri: !Join
+               - ''
+               - - http://
+                 - !GetAtt NLB.DNSName
+                 - /{proxy}
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: 200
+  Deployment:
+    DependsOn:
+      - RootMethod
+      - ProxyMethod
+      - Api
+    Type: 'AWS::ApiGateway::Deployment'
+    Properties:
+      RestApiId: !Ref Api
+      StageName: dev
+  #Second Deployment is needed for Usage Plan and ApiKey to take effect.
+  SecondDeployment:
+    DependsOn:
+      - Deployment
+      - ApiUsagePlan
+      - ApiUsagePlanKey
+      - ApiKey
+    Type: 'AWS::ApiGateway::Deployment'
+    Properties:
+      RestApiId: !Ref Api
+      StageName: dev
+
+Outputs:
+  NLBTargetGroup: #This output is used to attach Node ASG to this NLBTargetGroup in eks-workers stack
+    Description: The NLB Target Group
+    Value: !Ref NLBTargetGroup
+    Export:
+      Name:
+        Fn::Sub: "${Env}-NLBTargetGroup"
+  NLBDNSName:
+    Description: The NLB DNS Name
+    Value: !GetAtt NLB.DNSName
+  ApiId:
+    Description: The API Id
+    Value: !Ref Api
+    Export:
+      Name:
+        Fn::Sub: ${Env}-Api
+  ApiKeyId:
+    Description: The API Key Value
+    Value: !Ref ApiKey
+    Export:
+      Name:
+        Fn::Sub: ${Env}-ApiKey

@@ -1,0 +1,23 @@
+controller:
+  headers:
+  service:
+    annotations:  {
+     service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+    }
+  ##
+  # Be really careful here!!
+  # Please read all the docs before editing:
+  # https://en.wikipedia.org/wiki/HTTP_Strict_Transport_Security
+  # https://www.owasp.org/index.php/HTTP_Strict_Transport_Security_Cheat_Sheet
+  # Changed keep-alive-requests to 600000000 and added proxy-buffer-size for DEV
+  config: {
+    hsts: "true",
+    hsts-include-subdomains: "true",
+    hsts-max-age: "0",
+    hsts-preload: "false",
+    enable-vts-status: "true"
+   }
+defaultBackend:
+  port: "8080"
+podSecurityPolicy:
+  enabled: false

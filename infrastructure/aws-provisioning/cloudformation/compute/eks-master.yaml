@@ -1,0 +1,183 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description:
+    This template deploys an Amazon EKS - Cluster.
+Parameters:
+  Env:
+    Type: String
+    Description: "Environment Name"
+  ClusterVersion:
+    Type: String
+    Description:  "The EKS Cluster Version"
+    Default: '1.14'
+    AllowedValues:
+      - '1.12'
+      - '1.13'
+      - '1.14'
+  ClusterName:
+    Type: String
+    Description: Name of the EKS Cluster
+Resources:
+  #
+  # IAM Role needed by the cluster
+  #
+  ClusterRole:
+    Description: Allows EKS to manage clusters on your behalf.
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+            Effect: Allow
+            Principal:
+              Service:
+                - eks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+        - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
+  ClusterControlPlaneSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Cluster communication with worker nodes
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${Env}-VPC"
+  Cluster:
+    Type: "AWS::EKS::Cluster"
+    Properties:
+      Name: !Sub "${ClusterName}"
+      Version: !Ref "ClusterVersion"
+      RoleArn: !GetAtt ClusterRole.Arn
+      ResourcesVpcConfig:
+        SecurityGroupIds:
+          - !Ref ClusterControlPlaneSecurityGroup
+        SubnetIds:
+          - Fn::ImportValue:
+              !Sub "${Env}-PrivateSubnet1"
+          - Fn::ImportValue:
+              !Sub "${Env}-PrivateSubnet2"
+          - Fn::ImportValue:
+              !Sub "${Env}-PrivateSubnet3"
+  NodeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for all nodes in the cluster
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${Env}-VPC"
+      Tags:
+      - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+        Value: 'owned'
+  NodeInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+      - Fn::ImportValue:
+            Fn::Sub: "${ClusterName}-NodeInstanceRole"
+  NodeInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AutoScalingFullAccess
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+  NodeInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+      - !Ref NodeInstanceRole
+  WorkerEfsPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName:
+        Fn::Sub: "${Env}-worker-efs-policy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Action:
+              - "elasticfilesystem:DescribeFileSystems"
+              - "elasticfilesystem:CreateFileSystem"
+              - "elasticfilesystem:CreateTags"
+              - "elasticfilesystem:DescribeMountTargets"
+              - "elasticfilesystem:CreateMountTarget"
+              - "ec2:DescribeSubnets"
+              - "ec2:DescribeNetworkInterfaces"
+              - "ec2:CreateNetworkInterface"
+            Resource: "*"
+      Roles:
+        - !Ref NodeInstanceRole
+  WorkerS3Policy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName:
+        Fn::Sub: "${Env}-worker-s3-policy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Action:
+              - "s3:*"
+            Resource: "*"
+      Roles:
+        - !Ref NodeInstanceRole
+Outputs:
+  ClusterName:
+    Value: !Ref Cluster
+    Description: Cluster Name
+    Export:
+      Name:
+        Fn::Sub: "${ClusterName}-ClusterName"
+  ClusterArn:
+    Value: !GetAtt Cluster.Arn
+    Description: Cluster Arn
+    Export:
+      Name:
+        Fn::Sub: "${ClusterName}-ClusterArn"
+  ClusterEndpoint:
+    Value: !GetAtt Cluster.Endpoint
+    Description: Cluster Endpoint
+    Export:
+      Name:
+        Fn::Sub: "${ClusterName}-ClusterEndpoint"
+  ClusterControlPlaneSecurityGroup:
+    Value: !Ref ClusterControlPlaneSecurityGroup
+    Description: ClusterControlPlaneSecurityGroup
+    Export:
+      Name:
+        Fn::Sub: "${ClusterName}-ClusterControlPlaneSecurityGroup"
+  NodeSecurityGroup:
+    Description: The node security group
+    Value: !Ref NodeSecurityGroup
+    Export:
+      Name:
+        Fn::Sub: "${ClusterName}-NodeSecurityGroup"
+  NodeInstanceRole:
+    Description: The node instance role
+    Value: !GetAtt NodeInstanceRole.Arn
+    Export:
+      Name:
+        Fn::Sub: "${ClusterName}-NodeInstanceRoleARN"
+  NodeInstanceProfile:
+    Description: The node instance role
+    Value: !GetAtt NodeInstanceProfile.Arn
+    Export:
+      Name:
+        Fn::Sub: "${ClusterName}-NodeInstanceProfileARN"
