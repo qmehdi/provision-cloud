@@ -14,22 +14,8 @@ variable "region_ami" {
   }
 }
 
-#aurora
-variable "db_name" {}
-variable "db_user" {}
-variable "db_password" {}
-variable "db_port"  {}
-
-#gov stuff
-variable "provider_db_host" {}
-variable "provider_db_port" {}
-variable "provider_db_name" {}
-variable "provider_db_user" {}
-variable "provider_db_password" {}
-variable "claims_data_s3_path" {}
-
 terraform {
-  required_version = ">= 0.12.18"
+  required_version = ">= 0.12.20"
 }
 
 provider "aws" {
@@ -82,27 +68,6 @@ output "ClusterControlPlaneSecurityGroup" {
 #   public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDCIDR0lR6cBRZtT12OjIqCU4WKBpuSrUakPknh9hUINu15sM954Snjsf8qFVkM1ntXyb1hpRNDlAU8lOTKmbMToDVoETp2bsmhVqEjeRgTkaelus8RHIBzO70sd6ZsuUMi8ovcx7MiTJ1i6VLaYdprJmRINMwmbmBEFTIWMme2X5hvBXm/phAYdEVgcQxl1Sq7LyK8DyEdtIZ7VlvfD8f+dhbiJweQOEu9OcuIKJgCCg1nDshAJP/m/hTbgXvunLlqBAA+N03s5t1Jtz9dYRbaHxmn/77uDt8HwsvGhPGFSlXpKXyY1F1z7tLVnLThKftCMa/G9i7irlr/04o+BKZakzyY8sqUo9xVM8bB7z4r7Y1j8VhVzPzTSbljAxsBKzq9JqT511FfU9YkCKa7OhkjsBWcCfk6eFPaytYyqRvQIhDtrD1lBuLgF7mPVLzuub82vkCk7RrT9sTOXbkBHtlzTB1aHE2AUqxSsaMgcXvbQfnh0yGTJC4I1K2OBSkBpjm3lqAfMJIHR2M/sW74RWZ+HNLbtGXea10/VoKmS8hV5PtZa1rISDW6uOW+Kb5bW6rkXv5yFyShABKTco7we9bzc0hFCPXa8NFVtTEb3/O4T3/mjunp6h4UTWOR8PgQPdMjtHmEBwmIezK/iRTA9MiL6McSdV2KBhZ+RcLCpY2ixQ== qambermehdi@Qambers-MacBook-Pro.local"
 # }
 
-# Create API Gateway
-resource "aws_cloudformation_stack" "api-gateway" {
-  name = "${var.ClusterName}-api-gateway"
-  capabilities = ["CAPABILITY_IAM"]
-  parameters = {
-    ClusterName = "${var.ClusterName}",
-    Env = "${var.Env}",
-  }
-  template_body = file("${path.module}/../cloudformation/compute/api-gateway.yaml")
-
-  depends_on = ["aws_cloudformation_stack.eks-vpc"]
-}
-
-output "DatabaseClusterReadEndpoint" {
-  value = "${aws_cloudformation_stack.postgres.outputs["DatabaseClusterReadEndpoint"]}"
-}
-
-output "RDSDBEndpoint" {
-  value = "${aws_cloudformation_stack.postgres.outputs["RDSDBEndpoint"]}"
-}
-
 # Create eks workers
 resource "aws_cloudformation_stack" "eks-workers" {
   name = "${var.ClusterName}-workers"
@@ -120,7 +85,7 @@ resource "aws_cloudformation_stack" "eks-workers" {
   }
   template_body = "${file("${path.module}/../cloudformation/compute/eks-workers.yaml")}"
 
-  depends_on = ["aws_cloudformation_stack.eks-master", "aws_cloudformation_stack.api-gateway"]
+  depends_on = ["aws_cloudformation_stack.eks-master"]
 
   provisioner "local-exec" {
     command = "helm del --purge nginx --kubeconfig ${path.module}/files/kubeconfig.yaml || true"
@@ -129,25 +94,21 @@ resource "aws_cloudformation_stack" "eks-workers" {
 }
 
 # Create eks workers
-resource "aws_cloudformation_stack" "postgres" {
-  name = "${var.Env}-aurora-psql"
-  capabilities = ["CAPABILITY_IAM"]
-  parameters = {
-    #Need to look up better way to make this variable reference eks-master name variable
-    Env = "${var.Env}",
-    DBName = "${var.db_name}", #name of cloudformation stack
-    DBUser = "${var.db_user}",
-    DBPassword = "${var.db_password}",
-    DBInstanceClass = "db.t2.small",
-  }
-  template_body = "${file("${path.module}/../cloudformation/database/postgres.yaml")}"
-
-  depends_on = ["aws_cloudformation_stack.eks-vpc"]
-}
-
-output "ApiId" {
-  value = "https://${aws_cloudformation_stack.api-gateway.outputs["ApiId"]}.execute-api.${var.aws_region}.amazonaws.com/dev/"
-}
+# resource "aws_cloudformation_stack" "postgres" {
+#   name = "${var.Env}-aurora-psql"
+#   capabilities = ["CAPABILITY_IAM"]
+#   parameters = {
+#     #Need to look up better way to make this variable reference eks-master name variable
+#     Env = "${var.Env}",
+#     DBName = "${var.db_name}", #name of cloudformation stack
+#     DBUser = "${var.db_user}",
+#     DBPassword = "${var.db_password}",
+#     DBInstanceClass = "db.t2.small",
+#   }
+#   template_body = "${file("${path.module}/../cloudformation/database/postgres.yaml")}"
+#
+#   depends_on = ["aws_cloudformation_stack.eks-vpc"]
+# }
 #########################################################
 # export the EKS cluster KUBECONFIG into the eks-kubeconfigs dir
 resource "null_resource" "get-kube-config" {
@@ -223,60 +184,6 @@ resource "null_resource" "create-config_map_aws_auth" {
   }
   depends_on = ["local_file.config_map_aws_auth", "null_resource.get-kube-config"]
 }
-#The api key
-resource "null_resource" "display_api_key_value" {
-  provisioner "local-exec" {
-    command = "aws apigateway get-api-keys --query 'items[?name==`${var.Env}-Api-Key`].value' --include-values --output text --region ${var.aws_region} > ./files/api_key.txt"
-  }
-  depends_on = ["aws_cloudformation_stack.api-gateway"]
-}
-
-#The API Gateway Endpoint
-resource "null_resource" "display_api_gateway_url" {
-  provisioner "local-exec" {
-    command = "echo https://${aws_cloudformation_stack.api-gateway.outputs["ApiId"]}.execute-api.${var.aws_region}.amazonaws.com/dev/ > ./files/api_gateway_url.txt"
-  }
-  depends_on = ["aws_cloudformation_stack.api-gateway"]
-}
-
-# Create NLB Ingress
-locals {
-  nlb_ingress = <<NLBINGRESS
-  apiVersion: extensions/v1beta1
-  kind: Ingress
-  metadata:
-    name: nlb-ingress
-    annotations:
-      kubernetes.io/ingress.class: nginx-ingress
-  spec:
-    rules:
-    - host:  ${aws_cloudformation_stack.api-gateway.outputs["NLBDNSName"]}
-      http:
-        paths:
-        - backend:
-            serviceName: fhir-service
-            servicePort: 8080
-
-NLBINGRESS
-}
-
-resource "local_file" "nlb_ingress" {
-  content = "${local.nlb_ingress}"
-  filename = "${path.module}/files/nlb_ingress.yaml"
-  depends_on = ["null_resource.get-kube-config", "aws_cloudformation_stack.api-gateway"]
-}
-
-#This is needed to route api gateway calls to the fhir service
-resource "null_resource" "create_nlb_ingress" {
-  provisioner "local-exec" {
-    command = "kubectl apply -n default -f ${path.module}/files/nlb_ingress.yaml"
-
-    environment = {
-      KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
-    }
-  }
-  depends_on = ["local_file.nlb_ingress", "null_resource.get-kube-config"]
-}
 
 #Tiller is needed to be able to deploy helm charts
 resource "null_resource" "apply_tiller_stuff" {
@@ -351,121 +258,3 @@ resource "null_resource" "install_nginx" {
   }
   depends_on = ["null_resource.sleep2", "null_resource.clusterrolebinding", "null_resource.get-kube-config"]
 }
-
-# resource "null_resource" "create_regcred_secret" {
-#   provisioner "local-exec" {
-#     command = "kubectl apply -f ../../kube-manifests/regcred.yaml"
-#
-#     environment = {
-#       KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
-#     }
-#   }
-#   depends_on = ["null_resource.clusterrolebinding"]
-# }
-
-##### Deploy secret for FHIR service ######
-#Generate fhir-secret yaml
-locals {
-  fhir_secret = <<FHIRSECRET
-  apiVersion: v1
-  kind: Secret
-  metadata:
-    name: fhir-secret
-  type: Opaque
-  stringData:
-    DB_HOST: "${aws_cloudformation_stack.postgres.outputs["DatabaseClusterReadEndpoint"]}"
-    DB_PORT: "${var.db_port}"
-    DB_NAME: "${var.db_name}"
-    DB_USER: "${var.db_user}"
-    DB_PASSWORD: "${var.db_password}"
-    APP_URL: "https://${aws_cloudformation_stack.api-gateway.outputs["ApiId"]}.execute-api.${var.aws_region}.amazonaws.com/dev"
-FHIRSECRET
-}
-
-# Store the secret from above into a file
-resource "local_file" "fhir_secret" {
-    content = "${local.fhir_secret}"
-    filename = "${path.module}/files/${var.ClusterName}-fhir-secret.yaml"
-    depends_on = ["null_resource.get-kube-config"]
-}
-
-# apply and create the fhir-secret
-resource "null_resource" "create_fhir_secret" {
-  provisioner "local-exec" {
-    command = "kubectl apply -f ${path.module}/files/${var.ClusterName}-fhir-secret.yaml"
-
-    environment = {
-      KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
-    }
-  }
-  depends_on = ["local_file.fhir_secret", "null_resource.get-kube-config"]
-}
-
-##### Deploy fhir service and deployment manifests #####
-resource "null_resource" "deploy_fhir" {
-  provisioner "local-exec" {
-    command = "kubectl apply -f ../../kube-manifests/deployment.yaml"
-
-    environment = {
-      KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
-    }
-  }
-  depends_on = ["null_resource.clusterrolebinding", "null_resource.create_fhir_secret", "null_resource.get-kube-config"]
-}
-#######################
-##### Deploy ETL ######
-#Generate etl-secret yaml
-locals {
-  etl_secret = <<ETLSECRET
-  apiVersion: v1
-  kind: Secret
-  metadata:
-    name: etl-secret
-  type: Opaque
-  stringData:
-    DB_HOST: "${aws_cloudformation_stack.postgres.outputs["RDSDBEndpoint"]}"
-    DB_PORT: "${var.db_port}"
-    DB_NAME: "${var.db_name}"
-    DB_USER: "${var.db_user}"
-    DB_PASSWORD: "${var.db_password}"
-    PROVIDER_DB_HOST: "${var.provider_db_host}"
-    PROVIDER_DB_PORT: "${var.provider_db_port}"
-    PROVIDER_DB_NAME: "${var.provider_db_name}"
-    PROVIDER_DB_USER: "${var.provider_db_user}"
-    PROVIDER_DB_PASSWORD: "${var.provider_db_password}"
-    CLAIMS_DATA_S3_PATH: "${var.claims_data_s3_path}"
-ETLSECRET
-}
-
-# Store the secret from above into a file
-resource "local_file" "etl_secret" {
-    content = "${local.etl_secret}"
-    filename = "${path.module}/files/${var.ClusterName}-etl-secret.yaml"
-    depends_on = ["null_resource.get-kube-config"]
-}
-
-# apply and create the etl-secret
-resource "null_resource" "create_etl_secret" {
-  provisioner "local-exec" {
-    command = "kubectl apply -f ${path.module}/files/${var.ClusterName}-etl-secret.yaml"
-
-    environment = {
-      KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
-    }
-  }
-  depends_on = ["local_file.etl_secret", "null_resource.get-kube-config"]
-}
-
-##### Deploy etl service and deployment manifests #####
-resource "null_resource" "deploy_etl" {
-  provisioner "local-exec" {
-    command = "kubectl apply -f ../../kube-manifests/etl_deployment.yaml"
-
-    environment = {
-      KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
-    }
-  }
-  depends_on = ["null_resource.clusterrolebinding", "null_resource.create_etl_secret", "null_resource.get-kube-config"]
-}
-
-##########End of ETL######
