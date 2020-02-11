@@ -279,9 +279,9 @@ Resources:
       LaunchConfigurationName: !Ref NodeLaunchConfig
       MinSize: !Ref NodeAutoScalingGroupMinSize
       MaxSize: !Ref NodeAutoScalingGroupMaxSize
-      TargetGroupARNs:
-        - Fn::ImportValue:
-            !Sub "${Env}-NLBTargetGroup"
+      # TargetGroupARNs:
+      #   - Fn::ImportValue:
+      #       !Sub "${Env}-NLBTargetGroup"
       VPCZoneIdentifier:
         - Fn::ImportValue:
             !Sub "${Env}-PrivateSubnet1"
