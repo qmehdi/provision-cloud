@@ -253,8 +253,6 @@ spec:
           resources:
 {{ toYaml .Values.master.resources | indent 12 }}
           volumeMounts:
-            - mountPath: "/var/run/docker.sock"
-              name: dockersock
 {{- if .Values.persistence.mounts }}
 {{ toYaml .Values.persistence.mounts | indent 12 }}
 {{- end }}
