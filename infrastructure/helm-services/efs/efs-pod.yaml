@@ -1,0 +1,22 @@
+kind: Pod
+apiVersion: v1
+metadata:
+  name: efs-pod
+spec:
+  volumes:
+    - name: pv-volume
+      persistentVolumeClaim:
+        claimName: efs
+  containers:
+  - name: efs-pod
+    image: gcr.io/google_containers/busybox:1.24
+    command:
+      - "/bin/sh"
+    args:
+      - "-c"
+      - "sleep 50000 && exit 0 || exit 1"
+    volumeMounts:
+      - name: pv-volume
+        mountPath: "/opt/jenkins"
+        subPath: "jenkins"
+  restartPolicy: "Never"

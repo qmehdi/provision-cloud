@@ -93,6 +93,20 @@ resource "aws_cloudformation_stack" "eks-workers" {
   }
 }
 
+# Create EFS filesystem
+resource "aws_cloudformation_stack" "efs-filesystem" {
+  name = "${var.ClusterName}-EFS"
+  capabilities = ["CAPABILITY_IAM"]
+  parameters = {
+    Env = "${var.Env}",
+    VolumeName = "${var.ClusterName}"
+    ClusterName = "${var.ClusterName}"
+  }
+  template_body = "${file("${path.module}/../cloudformation/storage/efs.yaml")}"
+
+  depends_on = ["aws_cloudformation_stack.eks-vpc"]
+}
+
 # Create eks workers
 # resource "aws_cloudformation_stack" "postgres" {
 #   name = "${var.Env}-aurora-psql"

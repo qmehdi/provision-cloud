@@ -2,7 +2,7 @@ controller:
   headers:
   service:
     annotations:  {
-     service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+     service.beta.kubernetes.io/aws-load-balancer-internal: "false"
     }
   ##
   # Be really careful here!!

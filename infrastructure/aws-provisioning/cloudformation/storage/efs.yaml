@@ -1,0 +1,89 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This template creates an Amazon EFS file system and mount target and
+  associates it with Amazon EC2 instances in an Auto Scaling group. **WARNING** This
+  template creates Amazon EC2 instances and related resources. You will be billed
+  for the AWS resources used if you create a stack from this template.
+Parameters:
+  VolumeName:
+    Description: The name to be used for the EFS volume
+    Type: String
+    MinLength: '1'
+  Env:
+    Type: String
+    Description: "Environment Name"
+  ClusterName:
+    Type: String
+    Description: "The Cluster name this EFS stack will be "
+Resources:
+  FileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      PerformanceMode: generalPurpose
+      Encrypted: true
+      FileSystemTags:
+      - Key: Name
+        Value:
+          !Sub "${Env}-${VolumeName}"
+  MountTargetPrivateSubnet1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId:
+        Ref: FileSystem
+      SubnetId:
+        Fn::ImportValue:
+          !Sub "${Env}-PrivateSubnet1"
+      SecurityGroups:
+        - Fn::ImportValue:
+            !Sub "${ClusterName}-NodeSecurityGroup"
+  MountTargetPrivateSubnet2:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId:
+        Ref: FileSystem
+      SubnetId:
+        Fn::ImportValue:
+          !Sub "${Env}-PrivateSubnet2"
+      SecurityGroups:
+        - Fn::ImportValue:
+            !Sub "${ClusterName}-NodeSecurityGroup"
+  MountTargetPrivateSubnet3:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId:
+        Ref: FileSystem
+      SubnetId:
+        Fn::ImportValue:
+          !Sub "${Env}-PrivateSubnet3"
+      SecurityGroups:
+        - Fn::ImportValue:
+            !Sub "${ClusterName}-NodeSecurityGroup"
+Outputs:
+  MountTargetPrivateSubnet1:
+    Description: MountTargetPrivateSubnet1 ID
+    Value:
+      Ref: MountTargetPrivateSubnet1
+    Export:
+      Name:
+        Fn::Sub: "${Env}-EFS-MountTargetPrivateSubnet1"
+  MountTargetPrivateSubnet2:
+    Description: MountTargetPrivateSubnet2 ID
+    Value:
+      Ref: MountTargetPrivateSubnet2
+    Export:
+      Name:
+        Fn::Sub: "${Env}-EFS-MountTargetPrivateSubnet2"
+  MountTargetPrivateSubnet3:
+    Description: MountTargetPrivateSubnet3 ID
+    Value:
+      Ref: MountTargetPrivateSubnet3
+    Export:
+      Name:
+        Fn::Sub: "${Env}-EFS-MountTargetPrivateSubnet3"
+  FileSystemID:
+    Description: File system ID
+    Value:
+      Ref: FileSystem
+    Export:
+      Name:
+        Fn::Sub: "${Env}-EFS-${VolumeName}-FileSystemID"
