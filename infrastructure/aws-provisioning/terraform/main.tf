@@ -73,6 +73,7 @@ resource "aws_cloudformation_stack" "eks-workers" {
   name = "${var.ClusterName}-workers"
   capabilities = ["CAPABILITY_IAM"]
   parameters = {
+    KeyName = "cam"
     ClusterName = "${var.ClusterName}",
     BootstrapArguments = "--kubelet-extra-args '--eviction-soft=memory.available<20% --eviction-soft-grace-period=memory.available=1m --eviction-max-pod-grace-period=30 --eviction-minimum-reclaim=memory.available=8% --eviction-pressure-transition-period=10m --node-labels=nodePurpose=${var.ClusterName}-workers'",
     Env = "${var.Env}",

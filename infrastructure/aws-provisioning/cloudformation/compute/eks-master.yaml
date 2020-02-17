@@ -95,6 +95,7 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
         - arn:aws:iam::aws:policy/AutoScalingFullAccess
         - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+        - arn:aws:iam::aws:policy/AmazonRoute53FullAccess
   NodeInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:

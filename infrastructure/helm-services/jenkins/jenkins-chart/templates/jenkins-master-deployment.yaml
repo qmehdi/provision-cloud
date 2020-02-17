@@ -156,6 +156,9 @@ spec:
 {{- else }}
           image: "{{ .Values.master.image }}:{{ .Values.master.tag }}"
 {{- end }}
+          securityContext:
+            privileged: true
+            runAsUser: 0
           imagePullPolicy: "{{ .Values.master.imagePullPolicy }}"
           {{- if .Values.master.httpsKeyStore.enable }}
           {{- $httpsJKSFilePath :=  printf "%s/%s" .Values.master.httpsKeyStore.path .Values.master.httpsKeyStore.fileName -}}
@@ -252,7 +255,10 @@ spec:
 
           resources:
 {{ toYaml .Values.master.resources | indent 12 }}
+############## master image volume mounts ####################
           volumeMounts:
+            - mountPath: /var/run/docker.sock
+              name: dockersock
 {{- if .Values.persistence.mounts }}
 {{ toYaml .Values.persistence.mounts | indent 12 }}
 {{- end }}
@@ -336,11 +342,14 @@ spec:
 {{- if .Values.master.sidecars.other}}
 {{ tpl (toYaml .Values.master.sidecars.other | indent 8) .}}
 {{- end }}
-
+################ master image volumes ########################
       volumes:
 {{- if .Values.persistence.volumes }}
 {{ tpl (toYaml .Values.persistence.volumes | indent 6) . }}
 {{- end }}
+      - name: dockersock
+        hostPath:
+          path: /var/run/docker.sock
       - name: plugins
         emptyDir: {}
       - name: tmp

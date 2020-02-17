@@ -6,7 +6,7 @@
 ## Deploy environment label, e.g. dev, test, prod
 ##
 global:
-  deployEnv: default
+  deployEnv: jenkins
 
 ## Containers
 ##

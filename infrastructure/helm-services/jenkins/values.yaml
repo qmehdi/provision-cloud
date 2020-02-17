@@ -10,12 +10,14 @@
 master:
   hostName: jenkins.cloudision.com
   name: jenkins-master
-  image: "jenkins/jenkins"
-  imageTag: "lts"
+  image: "jenkinsci/blueocean"
+  #image: "jenkins/jenkins"
+  imageTag: "latest"
+  #imageTag: "lts"
   imagePullPolicy: "Always"
 # ImagePullSecret: jenkins
   component: "jenkins-master"
-  numExecutors: 4
+  numExecutors: 0
   useSecurity: true
   # SecurityRealm:
   # Optionally configure a different AuthorizationStrategy using Jenkins XML
@@ -117,7 +119,13 @@ master:
   # - name: BuildInfoProxy
   #   port: 9000
   # List of plugins to be install during Jenkins master start
-  # installPlugins:
+  installPlugins:
+   - kubernetes:1.12.0
+   - workflow-job:2.23
+   - workflow-aggregator:2.5
+   - credentials-binding:1.16
+   - git:3.9.1
+   - blueocean:1.7.1
     # - kubernetes:1.15.3
     # - workflow-job:2.32
     # - workflow-aggregator:2.6
@@ -186,68 +194,68 @@ master:
          - jenkins.cloudision.com
   additionalConfig: {}
 
-# agent:
-#   enabled: true
-#   image: ''
-#   imageTag: 2.0.9
-#   customJenkinsLabels: []
-# # ImagePullSecret: jenkins
-#   component: "jenkins-slave"
-#   privileged: true
-#   resources:
-#     requests:
-#       cpu: "50m"
-#       memory: "8Gi"
-#     limits:
-#       cpu: "4"
-#       memory: "12Gi"
-#   # You may want to change this to true while testing a new image
-#   alwaysPullImage: false
-#   # Controls how slave pods are retained after the Jenkins build completes
-#   # Possible values: Always, Never, OnFailure
-#   podRetention: Never
-#   # You can define the volumes that you want to mount for this container
-#   # Allowed types are: ConfigMap, EmptyDir, HostPath, Nfs, Pod, Secret
-#   # Configure the attributes as they appear in the corresponding Java class for that type
-#   # https://github.com/jenkinsci/kubernetes-plugin/tree/master/src/main/java/org/csanchez/jenkins/plugins/kubernetes/volumes
-#   volumes:
-#    - type: EmptyDir
-#      mountPath: /home/jenkins/.gradle
-#    - type: HostPath
-#      mountPath: /var/run/docker.sock
-#      hostPath: /var/run/docker.sock
-#    - type: Secret
-#      secretName: jenkins-jnlp
-#      mountPath: /home/jenkins/.gitconfig
-#      subPath: .gitconfig
-#    - type: Secret
-#      secretName: jenkins-jnlp
-#      mountPath: /home/jenkins/.netrc
-#      subPath: .netrc
-#    - type: Secret
-#      secretName: jenkins-jnlp
-#      mountPath: /home/jenkins/.spin/config
-#      subPath: config
-#    - type: Secret
-#      secretName: jenkins-jnlp
-#      mountPath: /home/jenkins/.gradle/gradle.properties
-#      subPath: gradle.properties
-#    - type: Secret
-#      secretName: jenkins-jnlp
-#      mountPath: /home/jenkins/.now/now-auth.json
-#      subPath: now-auth.json
-#    - type: Secret
-#      secretName: jenkins-jnlp
-#      mountPath: /home/jenkins/.now/now-config.json
-#      subPath: now-config.json
-#    - type: Secret
-#      secretName: jenkins-jnlp
-#      mountPath: /home/jenkins/.npmrc
-#      subPath: npmrc
+agent:
+  enabled: false
+  image: "413272867506.dkr.ecr.us-east-1.amazonaws.com/jenkins-agent"
+  imageTag: latest
+  # image: 'jenkins/slave'
+  # imageTag: 2.0.9
+  customJenkinsLabels: []
+# ImagePullSecret: jenkins
+  component: "jenkins-slave"
+  privileged: true
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "4Gi"
+    limits:
+      cpu: "4"
+      memory: "4Gi"
+  # You may want to change this to true while testing a new image
+  alwaysPullImage: false
+  # Controls how slave pods are retained after the Jenkins build completes
+  # Possible values: Always, Never, OnFailure
+  podRetention: Never
+  # You can define the volumes that you want to mount for this container
+  # Allowed types are: ConfigMap, EmptyDir, HostPath, Nfs, Pod, Secret
+  # Configure the attributes as they appear in the corresponding Java class for that type
+  # https://github.com/jenkinsci/kubernetes-plugin/tree/master/src/main/java/org/csanchez/jenkins/plugins/kubernetes/volumes
+  # volumes:
+  #  - type: HostPath
+  #    mountPath: /var/run/docker.sock
+  #    hostPath: /var/run/docker.sock
+  #  - type: Secret
+  #    secretName: jenkins-jnlp
+  #    mountPath: /home/jenkins/.gitconfig
+  #    subPath: .gitconfig
+  #  - type: Secret
+  #    secretName: jenkins-jnlp
+  #    mountPath: /home/jenkins/.netrc
+  #    subPath: .netrc
+  #  - type: Secret
+  #    secretName: jenkins-jnlp
+  #    mountPath: /home/jenkins/.spin/config
+  #    subPath: config
+  #  - type: Secret
+  #    secretName: jenkins-jnlp
+  #    mountPath: /home/jenkins/.gradle/gradle.properties
+  #    subPath: gradle.properties
+  #  - type: Secret
+  #    secretName: jenkins-jnlp
+  #    mountPath: /home/jenkins/.now/now-auth.json
+  #    subPath: now-auth.json
+  #  - type: Secret
+  #    secretName: jenkins-jnlp
+  #    mountPath: /home/jenkins/.now/now-config.json
+  #    subPath: now-config.json
+  #  - type: Secret
+  #    secretName: jenkins-jnlp
+  #    mountPath: /home/jenkins/.npmrc
+  #    subPath: npmrc
   # nodeSelector:
   #    nodePurpose: dev-jenkins-worker
   # Key Value selectors. Ex:
-  # jenkins-agent: v1
+  jenkins-agent: v1
 
 persistence:
   enabled: true
@@ -261,6 +269,8 @@ persistence:
   #     path: /pvs/jenkins
   #     server: fs-a9157700.efs.us-west-2.amazonaws.com
   mounts:
+   - mountpath: "/var/run/docker.sock"
+     name: dockersock
   #  - mountPath: /var/jenkins_home/
   #    name: jenkins
   #    readOnly: false
