@@ -2,7 +2,7 @@
 max_retry=30
 counter=0
 echo "Installing nginx ingress via helm"
-until helm install --namespace kube-system stable/nginx-ingress --name nginx \
+until helm install nginx --namespace kube-system stable/nginx-ingress \
 --set rbac.create=true \
 --set controller.scope.namespace=kube-system \
 --set controller.ingressClass=nginx-ingress \
