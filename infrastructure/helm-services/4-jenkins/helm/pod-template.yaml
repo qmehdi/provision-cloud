@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    dais/jenkins-slave-bk: jenkins-slave
+    app: jenkins-slave
+spec:
+    nodeSelector:
+      nodePurpose: dev-jenkins-worker
+    tolerations:
+      - key: "name"
+        operator: "Equal"
+        value: "dev-jenkins-worker"
+        effect: "NoSchedule"

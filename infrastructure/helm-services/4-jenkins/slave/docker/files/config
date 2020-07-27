@@ -1,0 +1,16 @@
+gate:
+  endpoint: "https://spinnaker.company.com:8084"
+auth:
+  enabled: true
+  oauth2:
+    tokenUrl: https://github.com/login/oauth/access_token
+    authUrl: https://github.com/login/oauth/authorize
+    clientId: a418e51a785acf60a33e
+    clientSecret: f962a3d417bfd366983e93344ecc6d257e96d7d1
+    scopes:
+    - repo
+    cachedToken:
+      accesstoken: f2603761d80b5ce45e25c8c37b64f398780e7942
+      tokentype: bearer
+      refreshtoken: ""
+      expiry: 0001-01-01T00:00:00Z

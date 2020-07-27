@@ -1,0 +1,1 @@
+helm install jenkins ./charts/stable/jenkins -f ./values.yaml --namespace=jenkins
