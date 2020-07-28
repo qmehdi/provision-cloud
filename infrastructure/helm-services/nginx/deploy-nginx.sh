@@ -14,8 +14,8 @@ until helm install nginx --namespace kube-system stable/nginx-ingress \
 --set controller.service.nodePorts.http=30080 \
 --set controller.service.nodePorts.https=30443 \
 --set controller.scope.enabled=false \
--f ../../nginx/internal-annotation-values.yaml \
--f ../../nginx/internal-values.yaml
+-f ../../helm-services/nginx/internal-annotation-values.yaml \
+-f ../../helm-services/nginx/internal-values.yaml
 do
   [[ counter -eq $max_retry ]] && echo "Timed out!" && exit 1
   echo "Failed to apply nginx ingress, sleep 15 try again"

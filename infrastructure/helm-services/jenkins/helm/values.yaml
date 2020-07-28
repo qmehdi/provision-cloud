@@ -15,7 +15,7 @@ master:
   imagePullPolicy: "Always"
 # ImagePullSecret: jenkins
   component: "jenkins-master"
-  numExecutors: 1
+  numExecutors: 0
   useSecurity: true
   # SecurityRealm:
   # Optionally configure a different AuthorizationStrategy using Jenkins XML
@@ -31,8 +31,8 @@ master:
       cpu: "50m"
       memory: "4Gi"
     limits:
-      cpu: "4"
-      memory: "6Gi"
+      cpu: "500m"
+      memory: "4Gi"
   # Environment variables that get added to the init container (useful for e.g. http_proxy)
   # InitContainerEnv:
   #   - name: http_proxy
@@ -41,7 +41,7 @@ master:
   #   - name: http_proxy
   #     value: "http://192.168.64.1:3128"
   # Set min/max heap here if needed with:
-  javaOpts: "-Xms5g -Xmx5g"
+  javaOpts: "-Xms3g -Xmx3g"
   # JenkinsOpts: ""
   # JenkinsUrl: ""
   # If you set this prefix and use ingress controller then you might want to set the ingress path below

@@ -77,7 +77,7 @@ resource "aws_cloudformation_stack" "eks-workers" {
     ClusterName = "${var.ClusterName}",
     BootstrapArguments = "--enable-docker-bridge true --kubelet-extra-args '--eviction-soft=memory.available<20% --eviction-soft-grace-period=memory.available=1m --eviction-max-pod-grace-period=30 --eviction-minimum-reclaim=memory.available=8% --eviction-pressure-transition-period=10m --node-labels=nodePurpose=${var.ClusterName}-workers'",
     Env = "${var.Env}",
-    NodeAutoScalingGroupDesiredCapacity = 1,
+    NodeAutoScalingGroupDesiredCapacity = 2,
     NodeAutoScalingGroupMaxSize = 5,
     NodeAutoScalingGroupMinSize	= 0,
     NodeGroupName	= "${var.ClusterName}-workers",
@@ -105,7 +105,11 @@ resource "aws_cloudformation_stack" "efs-filesystem" {
   }
   template_body = "${file("${path.module}/../cloudformation/storage/efs.yaml")}"
 
-  depends_on = ["aws_cloudformation_stack.eks-vpc"]
+  depends_on = ["aws_cloudformation_stack.eks-master", "aws_cloudformation_stack.eks-vpc"]
+}
+
+output "FileSystemID" {
+  value = "${aws_cloudformation_stack.efs-filesystem.outputs["FileSystemID"]}"
 }
 
 # Create eks workers
@@ -200,54 +204,10 @@ resource "null_resource" "create-config_map_aws_auth" {
   depends_on = ["local_file.config_map_aws_auth", "null_resource.get-kube-config"]
 }
 
-#Tiller is needed to be able to deploy helm charts
-resource "null_resource" "apply_tiller_stuff" {
-  provisioner "local-exec" {
-    command = "kubectl apply -f ../../tiller/rbac-tiller.yaml && kubectl apply -f ../../tiller/rbac-config.yaml"
-
-    environment = {
-      KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
-    }
-  }
-  depends_on = ["null_resource.create-config_map_aws_auth", "null_resource.get-kube-config"]
-}
-
-#Install Helm
-resource "null_resource" "install_helm" {
-  provisioner "local-exec" {
-    command = "helm init"
-
-    environment = {
-      KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
-    }
-  }
-  depends_on = ["null_resource.apply_tiller_stuff", "null_resource.get-kube-config"]
-}
-
-resource "null_resource" "sleep" {
-  provisioner "local-exec" {
-    command = "sleep 65"
-  }
-  depends_on = ["null_resource.install_helm"]
-}
-
-#This is needed to do helm deployments via tiller
-resource "null_resource" "patch_tiller" {
-  provisioner "local-exec" {
-    command = "../../tiller/patch-tiller.sh"
-
-    environment = {
-      KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
-    }
-  }
-  depends_on = ["null_resource.sleep", "null_resource.get-kube-config"]
-}
-
 resource "null_resource" "sleep2" {
   provisioner "local-exec" {
     command = "sleep 120"
   }
-  depends_on = ["null_resource.install_helm"]
 }
 
 #This is needed to do helm deploys
@@ -262,10 +222,59 @@ resource "null_resource" "clusterrolebinding" {
   depends_on = ["null_resource.sleep2", "null_resource.get-kube-config"]
 }
 
-#NGINX is needed to route requests to the service from the NLB
+# Deploy efs-provisioner helm chart 
+resource "null_resource" "deploy_efs-provisioner" {
+  provisioner "local-exec" {
+    command = "../../helm-services/efs-provisioner/deploy-efs-provisioner.sh ${aws_cloudformation_stack.efs-filesystem.outputs["FileSystemID"]}"
+
+    environment = {
+      KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
+    }
+  }
+  depends_on = ["aws_cloudformation_stack.efs-filesystem", "null_resource.sleep2", "null_resource.clusterrolebinding", "null_resource.get-kube-config"]
+}
+
+# Create jenkins namespace
+resource "null_resource" "create_jenkins_ns" {
+  provisioner "local-exec" {
+    command = "kubectl create ns jenkins"
+
+    environment = {
+      KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
+    }
+  }
+  depends_on = ["null_resource.sleep2", "null_resource.clusterrolebinding", "null_resource.get-kube-config"]
+}
+
+#Deploy PVC
+resource "null_resource" "install_pvc" {
+  provisioner "local-exec" {
+    command = "kubectl apply -n jenkins -f ../../helm-services/efs-provisioner/pvc.yaml"
+
+    environment = {
+      KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
+    }
+  }
+  depends_on = ["null_resource.sleep2", "null_resource.clusterrolebinding", "null_resource.get-kube-config"]
+}
+
+
+#Deploy NGINX
 resource "null_resource" "install_nginx" {
   provisioner "local-exec" {
-    command = "../../nginx/deploy-nginx.sh"
+    command = "../../helm-services/nginx/deploy-nginx.sh"
+
+    environment = {
+      KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
+    }
+  }
+  depends_on = ["null_resource.sleep2", "null_resource.clusterrolebinding", "null_resource.get-kube-config"]
+}
+
+#Deploy Jenkins 
+resource "null_resource" "deploy_jenkins" {
+  provisioner "local-exec" {
+    command = "../../helm-services/jenkins/deploy-jenkins.sh"
 
     environment = {
       KUBECONFIG = "${path.module}/files/kubeconfig.yaml"

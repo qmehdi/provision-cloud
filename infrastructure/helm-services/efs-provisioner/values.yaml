@@ -31,7 +31,7 @@ annotations: {}
 ##
 efsProvisioner:
   efsFileSystemId: fs-f22e8972
-  awsRegion: us-east-1
+  awsRegion: us-east-2
   # path: /pv
   path: /dev/pvs/
   provisionerName: efs-provisioner/aws-efs
