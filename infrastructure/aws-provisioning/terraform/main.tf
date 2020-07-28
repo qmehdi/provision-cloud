@@ -88,8 +88,9 @@ resource "aws_cloudformation_stack" "eks-workers" {
 
   depends_on = ["aws_cloudformation_stack.eks-master"]
 
+# Delete NGINX Helm chart on terraform destroy. This must be done first otherwise vpc deletion will fail
   provisioner "local-exec" {
-    command = "helm del --purge nginx --kubeconfig ${path.module}/files/kubeconfig.yaml || true"
+    command = "helm uninstall -n kube-system nginx --kubeconfig ${path.module}/files/kubeconfig.yaml || true"
     when = "destroy"
   }
 }
@@ -275,6 +276,18 @@ resource "null_resource" "install_nginx" {
 resource "null_resource" "deploy_jenkins" {
   provisioner "local-exec" {
     command = "../../helm-services/jenkins/deploy-jenkins.sh"
+
+    environment = {
+      KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
+    }
+  }
+  depends_on = ["null_resource.sleep2", "null_resource.clusterrolebinding", "null_resource.get-kube-config"]
+}
+
+#Deploy External DNS
+resource "null_resource" "deploy_external_dns" {
+  provisioner "local-exec" {
+    command = "../../helm-services/external-dns/deploy-external-dns.sh"
 
     environment = {
       KUBECONFIG = "${path.module}/files/kubeconfig.yaml"

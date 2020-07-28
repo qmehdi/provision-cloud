@@ -54,8 +54,8 @@ spec:
         args:
         - --source=ingress
         - --provider=aws
-        - --annotation-filter=kubernetes.io/ingress.class=dev-internal-ingress-test
+        - --annotation-filter=kubernetes.io/ingress.class=nginx-ingress
         - --aws-zone-type=public # only look at public hosted zones (valid values are public, private or no value for both)
         - --registry=txt
-        - --txt-prefix=devops-internal-ingress-test
-        - --txt-owner-id=Z20213SNL22SIS
+        - --txt-prefix=nginx-ingress
+        - --txt-owner-id=Z2JYETAP43KJUS
