@@ -73,7 +73,7 @@ resource "aws_cloudformation_stack" "eks-workers" {
   name = "${var.ClusterName}-workers"
   capabilities = ["CAPABILITY_IAM"]
   parameters = {
-    KeyName = "cam"
+    #KeyName = "cam"
     ClusterName = "${var.ClusterName}",
     BootstrapArguments = "--enable-docker-bridge true --kubelet-extra-args '--eviction-soft=memory.available<20% --eviction-soft-grace-period=memory.available=1m --eviction-max-pod-grace-period=30 --eviction-minimum-reclaim=memory.available=8% --eviction-pressure-transition-period=10m --node-labels=nodePurpose=${var.ClusterName}-workers'",
     Env = "${var.Env}",
@@ -207,7 +207,7 @@ resource "null_resource" "create-config_map_aws_auth" {
 
 resource "null_resource" "sleep2" {
   provisioner "local-exec" {
-    command = "sleep 120"
+    command = "sleep 10"
   }
 }
 
@@ -247,6 +247,18 @@ resource "null_resource" "create_jenkins_ns" {
   depends_on = ["null_resource.sleep2", "null_resource.clusterrolebinding", "null_resource.get-kube-config"]
 }
 
+#Deploy External DNS
+resource "null_resource" "deploy_external_dns" {
+  provisioner "local-exec" {
+    command = "../../helm-services/external-dns/deploy-external-dns.sh"
+
+    environment = {
+      KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
+    }
+  }
+  depends_on = ["null_resource.sleep2", "null_resource.clusterrolebinding", "null_resource.get-kube-config"]
+}
+
 #Deploy PVC
 resource "null_resource" "install_pvc" {
   provisioner "local-exec" {
@@ -256,7 +268,7 @@ resource "null_resource" "install_pvc" {
       KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
     }
   }
-  depends_on = ["null_resource.sleep2", "null_resource.clusterrolebinding", "null_resource.get-kube-config"]
+  depends_on = ["null_resource.deploy_external_dns", "null_resource.sleep2", "null_resource.clusterrolebinding", "null_resource.get-kube-config"]
 }
 
 
@@ -269,7 +281,7 @@ resource "null_resource" "install_nginx" {
       KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
     }
   }
-  depends_on = ["null_resource.sleep2", "null_resource.clusterrolebinding", "null_resource.get-kube-config"]
+  depends_on = ["null_resource.deploy_external_dns", "null_resource.sleep2", "null_resource.clusterrolebinding", "null_resource.get-kube-config"]
 }
 
 #Deploy Jenkins 
@@ -281,17 +293,6 @@ resource "null_resource" "deploy_jenkins" {
       KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
     }
   }
-  depends_on = ["null_resource.sleep2", "null_resource.clusterrolebinding", "null_resource.get-kube-config"]
+  depends_on = ["null_resource.deploy_external_dns", "null_resource.sleep2", "null_resource.clusterrolebinding", "null_resource.get-kube-config"]
 }
 
-#Deploy External DNS
-resource "null_resource" "deploy_external_dns" {
-  provisioner "local-exec" {
-    command = "../../helm-services/external-dns/deploy-external-dns.sh"
-
-    environment = {
-      KUBECONFIG = "${path.module}/files/kubeconfig.yaml"
-    }
-  }
-  depends_on = ["null_resource.sleep2", "null_resource.clusterrolebinding", "null_resource.get-kube-config"]
-}
