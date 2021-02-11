@@ -9,11 +9,11 @@ Parameters:
   ClusterVersion:
     Type: String
     Description:  "The EKS Cluster Version"
-    Default: '1.14'
+    Default: '1.18'
     AllowedValues:
-      - '1.12'
-      - '1.13'
-      - '1.14'
+      - '1.16'
+      - '1.17'
+      - '1.18'
   ClusterName:
     Type: String
     Description: Name of the EKS Cluster
